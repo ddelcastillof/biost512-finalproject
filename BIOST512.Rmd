@@ -1,6 +1,6 @@
 ---
 title: "BIOST512-rmd"
-author: "Darwin Del Castillo"
+author: "Darwin Del Castillo, Ana Castillo, Judy Machuka, Vicky Le"
 date: "`r Sys.Date()`"
 output:
   word_document:
