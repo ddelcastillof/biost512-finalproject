@@ -1,0 +1,139 @@
+---
+title: "BIOST512-rmd"
+author: "Darwin Del Castillo"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: no
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = "")
+```
+## Packages for the assignment
+```{r loading packages}
+pacman::p_load("rigr", 
+               "tidyverse", 
+               "lattice", 
+               "ggplot2", 
+               "flextable", 
+               "gtsummary",
+               "geomtextpath",
+               "RColorBrewer",
+               "e1071",
+               "gmodels")
+```
+## Loading the dataset
+```{r dataset, , include = FALSE, echo=FALSE}
+biost512 <- read_csv("BIOST512-subset-LifeExpectancy.csv",
+                      col_names=T,
+                      show_col_types = F)
+```
+## Exploring the dataset
+```{r exploratory variables, , include = FALSE, echo=FALSE}
+str(biost512, give.attr=F)
+summary(biost512)
+unique(biost512$IncomeGroup)
+biost512$IncomeGroup <- factor(biost512$IncomeGroup, levels = c("Low income", "Middle Income", "High income"), ordered = is.ordered(biost512$IncomeGroup)) 
+```
+## Creating exploratory graphs
+```{r graph 1, , include = TRUE, echo=FALSE, message=FALSE}
+xyplot(LifeExpectancy2019 ~ LifeExpectancy2001, group = IncomeGroup, data=biost512, type=c("p","r"), auto.key=TRUE)
+png(filename = "figure1.png", width = 7500, height = 3600, units = "px")
+ggplot(data = biost512, aes(y=LifeExpectancy2019, x=LifeExpectancy2001, color=IncomeGroup, label=IncomeGroup)) +
+  geom_point() +
+  geom_smooth(method=lm, se=F) +
+  xlab("Life Expectancy in 2001") +
+  ylab("Life Expectancy in 2019") +
+  labs(color = "Income Groups") +
+  scale_colour_brewer(palette = "Dark2") +
+  ggtitle(label = "Figure 1. Scatterplot comparing life expectancy in 2001 
+  versus life expectancy in 2019 across income groups") +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave(filename = "figure1.png", dpi = 1024, limitsize = F)
+
+```
+
+```{r graph 2, , include = TRUE, echo=FALSE, message=FALSE}
+boxplot(LifeExpectancy2019 ~  IncomeGroup, data=biost512, ordered = T)
+png(filename = "figure2.png", width = 7500, height = 3600, units = "px")
+ggplot(data = biost512, 
+  aes(y = LifeExpectancy2019, x = IncomeGroup, fill=IncomeGroup)) + 
+  geom_boxplot() + 
+  xlab("Income Group") +
+  ylab("Life Expectancy in 2019") +
+  labs(fill = "Income Groups") + 
+  scale_fill_brewer(palette = "Pastel2") +
+  ggtitle(label = "Figure 2. Boxplot for the variable life expectancy in 2019") +
+  theme(plot.title = element_text(hjust = 0.5))
+ggsave(filename = "figure2.png", dpi = 1024, limitsize = F)
+
+```
+## Summaryzing data
+```{r descriptive table, include = TRUE, echo=FALSE, message=FALSE}
+theme_gtsummary_journal(journal = "nejm")
+png(filename = "table1.png", width = 3600, height = 7500, units = "px")
+table.1 <- biost512 %>%
+           select(LifeExpectancy2001, LifeExpectancy2019, HealthExpenditure2019, IncomeGroup) %>% 
+           tbl_summary(missing = "no",
+                      type = c(LifeExpectancy2001 ~ "continuous2", 
+                               LifeExpectancy2019 ~ "continuous2", 
+                               HealthExpenditure2019 ~ "continuous2",
+                               IncomeGroup ~ "categorical"),
+                      statistic = list(all_continuous() ~ c("{mean} ({sd})",
+                                                            "{median} ({p25}, {p75})", 
+                                                            "{min}, {max}",
+                                                            "{N_miss} ({p_miss})"),
+                                       all_categorical() ~ c("{n} ({p})")),
+                      digits = list(c(LifeExpectancy2001, LifeExpectancy2019, HealthExpenditure2019) ~ c(0,1,0,0,0,0,0,0,1),
+                                      IncomeGroup ~ c(0,1,0,1)),
+                      label = list(LifeExpectancy2001 ~ "Life expectancy in 2001",
+                                   LifeExpectancy2019 ~ "Life expectancy in 2019",
+                                   HealthExpenditure2019 ~ "Health expenditure in 2019",
+                                   IncomeGroup ~ "Income group")) %>%
+            modify_header(label = "**Variable**") %>% 
+            add_stat_label(label = list(all_continuous() ~ c("Mean (SD)", 
+                                                             "Median (IQR)",
+                                                             "Min to Max",
+                                                             "Missing (%)"),
+                                        all_categorical() ~ c("Total (%)")))
+gt::gtsave(as_gt(table.1), file = "table1.png")
+```
+## Running models
+```{r anova model 1, , include = FALSE, echo=FALSE}
+fit <- regress("mean", LifeExpectancy2019 ~  IncomeGroup, data = biost512)
+fit
+grid <- expand.grid(IncomeGroup=c("Low income", "Middle Income", "High income"))
+pred <- cbind(grid, predict = predict(fit, newdata=grid))
+
+lh1 <- lincom(fit, c(0,1,-1)) 
+lh1
+```
+
+```{r anova model 2, , include = FALSE, echo=FALSE}
+fit2 <- regress("mean", LifeExpectancy2019 ~  IncomeGroup  + HealthExpenditure2019, data = biost512)
+fit2
+pv2 <- c(0.00005, 0.00005, 0.00005, 0.0025)
+p.adjust(pv2, method="bonferroni", n=length(pv2))
+
+lh2 <- lincom(fit2, c(0,1,-1, 0)) 
+lh2
+```
+
+```{r anova model 3, , include = FALSE, echo=FALSE}
+fit3 <- regress("mean", LifeExpectancy2019 ~  IncomeGroup  + HealthExpenditure2019 + LifeExpectancy2001, data = biost512)
+fit3
+pv3 <- c(0.00005, 0.0002 , 0.7332, 0.2865, 0.1578, 0.00005)
+p.adjust(pv3, method="bonferroni", n=length(pv3))
+
+```
+
+```{r anova model 4, , include = FALSE, echo=FALSE}
+fit4 <- regress("mean", LifeExpectancy2019 ~  IncomeGroup  + HealthExpenditure2019 + U(lifeexp = ~ LifeExpectancy2001 + IncomeGroup:LifeExpectancy2001), data = biost512)
+
+fit4
+pv4 <- c(0.00005, 0.5591 , 0.0404, 0.4293, 0.0001, 0.0210)
+p.adjust(pv4, method="bonferroni", n=length(pv4))
+```
